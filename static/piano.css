@@ -92,3 +92,22 @@ audio {
   left: -10px;
   background-color: black;
 }
+
+.trainer {
+
+}
+
+.trainer-container{
+  margin: auto;
+  width: 40%;
+  padding: 30px;
+}
+
+.trainer-container div {
+  text-align: left;
+  margin: 20px;
+}
+
+.control button {
+  margin-right: 28px;
+}
