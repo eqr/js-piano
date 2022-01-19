@@ -190,6 +190,11 @@
       sustaining = true;
       $(pianoClass('pedal')).addClass('piano-sustain');
     }
+    if (event.keyCode == 32) {
+      if (melody) {
+        playMelody(melody.slice())
+      }
+    }
     index = melodyCodes.indexOf(event.which)
     if (index != -1 && melody) {
       note = melody[index]
@@ -231,8 +236,8 @@
 
     type = $("#scale option:selected").text()
     if (type == "random") {
-      i = getRandomNumber(1)
-      if (i == 0) {
+      i = getRandomNumber(100)
+      if (i < 50) {
         type = "min"
       } else {
         type = "maj"
@@ -304,6 +309,8 @@
       playMelody(m)
     }
     setTimeout(function () {
+      audio.volume = 1
+      audio.currentTime = 0
       audio.play()
       setTimeout(function () {
         audio.pause();
