@@ -300,7 +300,7 @@
     }
     note = m[0]
     m.shift()
-    var audio = sound(note)
+    const audio = sound(note)
     if (!audio) {
       return
     }
