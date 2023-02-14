@@ -13,4 +13,4 @@ steps:
     - (cd /home/eqr/code/js-piano && git pull && make deploy)
   when:
     branch:
-      - main
+      - master
