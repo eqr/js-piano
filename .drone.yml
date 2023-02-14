@@ -1,0 +1,16 @@
+kind: pipeline
+type: exec
+name: deploy
+
+
+steps:
+- name: deploy
+  environment:
+    CGO_ENABLED: 0
+    GOMODCACHE: '/home/eqr/drone/src/pkg.mod'
+    GOCACHE: '/home/eqr/drone/src/pkg.build'
+  commands:
+    - (cd /home/eqr/code/js-piano && git pull && make deploy)
+  when:
+    branch:
+      - main
