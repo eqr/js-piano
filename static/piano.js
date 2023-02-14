@@ -18,7 +18,7 @@
 (function () {
   /* Piano keyboard pitches. Names match sound files by ID attribute. */
 
-  var keys = [
+  const keys = [
     "A2",
     "Bb2",
     "B2",
@@ -49,14 +49,27 @@
     "C5",
   ];
 
-  var notes = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+  const notes = [
+    "C",
+    "Db",
+    "D",
+    "Eb",
+    "E",
+    "F",
+    "Gb",
+    "G",
+    "Ab",
+    "A",
+    "Bb",
+    "B",
+  ];
 
   /* Corresponding keyboard keycodes, in order w/ 'keys'. */
   /* QWERTY layout:
   /*   upper register: Q -> P, with 1-0 as black keys. */
   /*   lower register: Z -> M, , with A-L as black keys. */
 
-  var codes = [
+  const codes = [
     90,
     83,
     88,
@@ -87,15 +100,16 @@
     80,
   ];
 
-  var melodyCodes = [49, 50, 51, 52, 53, 54, 55, 56, 57, 48];
+  // generate melody in middle octave
+  const melodyCodes = [49, 50, 51, 52, 53, 54, 55, 56, 57, 48];
 
-  var pedal = 32; /* Keycode for sustain pedal. */
-  var tonic = "A2"; /* Lowest pitch. */
+  const pedal = 32; /* Keycode for sustain pedal. */
+  const tonic = "A2"; /* Lowest pitch. */
 
   /* Piano state. */
 
-  var intervals = {};
-  var depressed = {};
+  const intervals = {};
+  const depressed = {};
 
   /* Selectors */
 
@@ -108,7 +122,7 @@
   }
 
   function sound(id) {
-    var it = document.getElementById(soundId(id));
+    const it = document.getElementById(soundId(id));
     return it;
   }
 
@@ -157,8 +171,8 @@
   /* These values are hand-selected for a pleasant fade-out quality. */
 
   function fade(key) {
-    var audio = sound(key);
-    var stepfade = function () {
+    const audio = sound(key);
+    const stepfade = function () {
       if (audio) {
         if (audio.volume < 0.03) {
           kill(key)();
@@ -382,6 +396,7 @@
     positions.forEach((pos) => {
       m.push(melody_notes[pos]);
     });
+    $("#play-melody-button").focus();
     return m;
   };
 
