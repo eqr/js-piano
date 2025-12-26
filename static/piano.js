@@ -16,6 +16,7 @@
 */
 
 (function () {
+  "use strict";
   /* Piano keyboard pitches. Names match sound files by ID attribute. */
 
   const keys = [
@@ -108,8 +109,18 @@
 
   /* Piano state. */
 
-  const intervals = {};
-  const depressed = {};
+  const state = {
+    intervals: {},
+    depressed: {},
+    sustaining: false,
+    melody: null,
+    key: null,
+    type: null,
+    melodyTimer: null,
+    notePools: {},
+    notePoolIndex: {},
+    activeAudio: {},
+  };
 
   /* Selectors */
 
@@ -126,52 +137,88 @@
     return it;
   }
 
+  function getNoteVoice(id) {
+    const base = sound(id);
+    if (!base) {
+      return null;
+    }
+
+    if (!state.notePools[id]) {
+      const pool = [base];
+      for (let i = 0; i < 2; i += 1) {
+        const clone = base.cloneNode(true);
+        clone.removeAttribute("id");
+        pool.push(clone);
+      }
+      state.notePools[id] = pool;
+      state.notePoolIndex[id] = 0;
+    }
+
+    const pool = state.notePools[id];
+    const index = state.notePoolIndex[id];
+    state.notePoolIndex[id] = (index + 1) % pool.length;
+    return pool[index];
+  }
+
+  function playAudioForKey(key) {
+    const audio = getNoteVoice(key);
+    if (!audio) {
+      return null;
+    }
+
+    audio.pause();
+    audio.volume = 1.0;
+    audio.currentTime = 0;
+    const playPromise = audio.play();
+    if (playPromise && typeof playPromise.catch === "function") {
+      playPromise.catch(function () {});
+    }
+    state.activeAudio[key] = audio;
+    return audio;
+  }
+
   /* Virtual piano keyboard events. */
 
   function keyup(code) {
-    var offset = codes.indexOf(code);
-    var k;
+    const offset = codes.indexOf(code);
+    let k;
     if (offset >= 0) {
       k = keys.indexOf(tonic) + offset;
       return keys[k];
     }
+    return null;
   }
 
   function keydown(code) {
     return keyup(code);
   }
 
-  function press(key) {
-    var audio = sound(key);
-    if (depressed[key]) {
-      return;
-    }
-    clearInterval(intervals[key]);
-    playAudio(audio);
-    if (audio.readyState >= 2) {
-      depressed[key] = true;
-    }
+  function playNote(key) {
+    const audio = playAudioForKey(key);
     $(pianoClass(key)).animate({
       "backgroundColor": "#88FFAA",
     }, 0);
+    return audio;
   }
 
-  function playAudio(audio) {
-    if (audio) {
-      audio.pause();
-      audio.volume = 1.0;
-      if (audio.readyState >= 2) {
-        audio.currentTime = 0;
-        audio.play();
-      }
+  function press(key) {
+    if (state.depressed[key]) {
+      return;
     }
+    state.depressed[key] = true;
+    clearInterval(state.intervals[key]);
+    playNote(key);
+  }
+
+  function getActiveAudio(key) {
+    return state.activeAudio[key] || sound(key);
   }
 
   /* Manually diminish the volume when the key is not sustained. */
   /* These values are hand-selected for a pleasant fade-out quality. */
 
   function fade(key) {
-    const audio = sound(key);
+    const audio = getActiveAudio(key);
     const stepfade = function () {
       if (audio) {
         if (audio.volume < 0.03) {
@@ -186,17 +233,17 @@
       }
     };
     return function () {
-      clearInterval(intervals[key]);
-      intervals[key] = setInterval(stepfade, 5);
+      clearInterval(state.intervals[key]);
+      state.intervals[key] = setInterval(stepfade, 5);
     };
   }
 
   /* Bring a key to an immediate halt. */
 
   function kill(key) {
-    const audio = sound(key);
+    const audio = getActiveAudio(key);
     return function () {
-      clearInterval(intervals[key]);
+      clearInterval(state.intervals[key]);
       if (audio) {
         audio.pause();
       }
@@ -226,8 +273,6 @@
 
   /* Sustain pedal, toggled by user. */
 
-  const sustaining = false;
-
   /* Register mouse event callbacks. */
 
   keys.forEach(function (key) {
@@ -239,15 +284,15 @@
     });
     if (fadeout) {
       $(pianoClass(key)).mouseup(function () {
-        depressed[key] = false;
-        if (!sustaining) {
+        state.depressed[key] = false;
+        if (!state.sustaining) {
           fade(key)();
         }
       });
     } else {
       $(pianoClass(key)).mouseup(function () {
-        depressed[key] = false;
-        if (!sustaining) {
+        state.depressed[key] = false;
+        if (!state.sustaining) {
           kill(key)();
         }
       });
@@ -258,27 +303,28 @@
 
   $(document).keydown(function (event) {
     if (event.which === pedal) {
-      sustaining = true;
+      state.sustaining = true;
       $(pianoClass("pedal")).addClass("piano-sustain");
     }
-    if (event.keyCode == 32) {
-      if (melody) {
-        playMelody(melody.slice());
-      }
+    const pressedKey = keydown(event.which);
+    if (pressedKey) {
+      press(pressedKey);
     }
-    index = melodyCodes.indexOf(event.which);
-    if (index != -1 && melody) {
-      note = melody[index];
-      playMelody([note]);
+    if (event.which !== pedal && !pressedKey) {
+      const index = melodyCodes.indexOf(event.which);
+      if (index !== -1 && state.melody) {
+        const note = state.melody[index];
+        playMelody([note]);
+      }
     }
   });
 
   $(document).keyup(function (event) {
     if (event.which === pedal) {
-      sustaining = false;
+      state.sustaining = false;
       $(pianoClass("pedal")).removeClass("piano-sustain");
-      Object.keys(depressed).forEach(function (key) {
-        if (!depressed[key]) {
+      Object.keys(state.depressed).forEach(function (key) {
+        if (!state.depressed[key]) {
           if (fadeout) {
             fade(key)();
           } else {
@@ -287,27 +333,28 @@
         }
       });
     }
-    if (keyup(event.which)) {
-      depressed[keyup(event.which)] = false;
-      if (!sustaining) {
+    const releasedKey = keyup(event.which);
+    if (releasedKey) {
+      state.depressed[releasedKey] = false;
+      if (!state.sustaining) {
         if (fadeout) {
-          fade(keyup(event.which))();
+          fade(releasedKey)();
         } else {
-          kill(keyup(event.which))();
+          kill(releasedKey)();
         }
       }
     }
   });
 
   $("#new-melody-button").click(function () {
-    key = $("#keys option:selected").text();
+    let key = $("#keys option:selected").text();
     if (key == "random") {
       key = notes[getRandomNumber(11)];
     }
 
-    type = $("#scale option:selected").text();
+    let type = $("#scale option:selected").text();
     if (type == "random") {
-      i = getRandomNumber(100);
+      const i = getRandomNumber(100);
       if (i < 50) {
         type = "min";
       } else {
@@ -315,84 +362,97 @@
       }
     }
 
-    number = $("#number_of_notes option:selected").text();
-    melody = generateMelody(key + "3", type, Number.parseInt(number));
+    const number = $("#number_of_notes option:selected").text();
+    state.key = key;
+    state.type = type;
+    state.melody = generateMelody(key + "3", type, Number.parseInt(number));
     if ($("#show-key").is(":checked")) {
       printKey(key, type);
     }
     printMelody([]);
-    playMelody(melody.slice());
+    playMelody(state.melody.slice());
   });
 
-  getRandomNumber = function (max) {
+  const getRandomNumber = function (max) {
     max = Math.floor(max);
     return Math.floor(Math.random() * max);
   };
 
   $("#play-melody-button").click(function () {
-    if (!melody) {
+    if (!state.melody) {
       return;
     }
 
-    playMelody(melody.slice());
+    playMelody(state.melody.slice());
   });
 
   $("#play-scale-button").click(function () {
-    if (!key || !type) {
+    if (!state.key || !state.type) {
       return;
     }
     // start with octave in the middle, not too high
-    scale = getKeyNotes(key + "3", type);
+    const scale = getKeyNotes(state.key + "3", state.type);
 
     playMelody(scale);
   });
 
   $("#show-melody").click(function () {
-    if (!melody || !key) {
+    if (!state.melody || !state.key) {
       return;
     }
-    printMelody(melody);
-    printKey(key, type);
+    printMelody(state.melody);
+    printKey(state.key, state.type);
   });
 
-  printMelody = function (melody) {
-    text = melody.join(" ");
+  const printMelody = function (melody) {
+    const text = melody.join(" ");
     $("#notes").text("Notes: " + text);
   };
 
-  printKey = function (key, type) {
-    text = key + " " + type;
+  const printKey = function (key, type) {
+    const text = key + " " + type;
     $("#key").text("Key: " + text);
   };
 
-  playMelody = function (m) {
-    if (m.length == 0) {
-      return;
-    }
-    note = m[0];
-    m.shift();
-    const audio = sound(note);
-    if (!audio) {
+  const playMelody = function (melody) {
+    if (!melody || melody.length === 0) {
       return;
     }
 
-    audio.onpause = function () {
-      playMelody(m);
+    if (state.melodyTimer) {
+      clearTimeout(state.melodyTimer);
+      state.melodyTimer = null;
+    }
+
+    const noteDurationMs = 800;
+    const releaseDelayMs = 650;
+    let index = 0;
+
+    const step = function () {
+      const note = melody[index];
+      playNote(note);
+      if (!state.sustaining) {
+        setTimeout(function () {
+          if (fadeout) {
+            fade(note)();
+          } else {
+            kill(note)();
+          }
+        }, releaseDelayMs);
+      }
+      index += 1;
+      if (index < melody.length) {
+        state.melodyTimer = setTimeout(step, noteDurationMs);
+      }
     };
 
-    audio.volume = 1;
-    audio.currentTime = 0;
-    audio.play();
-    setTimeout(function () {
-      audio.pause();
-      audio.currentTime = 999999999;
-    }, 800);
+    step();
   };
 
-  generateMelody = function (key, type, length) {
-    melody_notes = getKeyNotes(key, type);
-    positions = getRandomPositions(length - 1);
-    m = [key];
+  const generateMelody = function (key, type, length) {
+    const melody_notes = getKeyNotes(key, type);
+    const positions = getRandomPositions(length - 1);
+    const m = [key];
     positions.forEach((pos) => {
       m.push(melody_notes[pos]);
     });
@@ -400,8 +460,8 @@
     return m;
   };
 
-  getKeyNotes = function (key, type) {
-    scheme = [];
+  const getKeyNotes = function (key, type) {
+    let scheme = [];
     if (type === "maj") {
       scheme = [2, 2, 1, 2, 2, 2, 1];
     } else if (type === "min") {
@@ -410,9 +470,9 @@
     return getNotesByPattern(key, scheme);
   };
 
-  getNotesByPattern = function (key, pattern) {
-    index = keys.indexOf(key);
-    scale_notes = [key];
+  const getNotesByPattern = function (key, pattern) {
+    let index = keys.indexOf(key);
+    const scale_notes = [key];
     pattern.forEach((step) => {
       index = index + step;
       scale_notes.push(keys[index]);
@@ -420,13 +480,13 @@
     return scale_notes;
   };
 
-  getRandomPositions = function (count) {
-    min = Math.ceil(2);
-    max = Math.floor(7);
+  const getRandomPositions = function (count) {
+    const min = Math.ceil(2);
+    const max = Math.floor(7);
 
-    numbers = [];
+    const numbers = [];
     while (numbers.length < count) {
-      i = Math.floor(Math.random() * (max - min) + min);
+      const i = Math.floor(Math.random() * (max - min) + min);
       if (numbers.indexOf(i) == -1) {
         numbers.push(i);
       }
