@@ -93,6 +93,14 @@ audio {
   background-color: black;
 }
 
+.piano-white.piano-melody {
+  background-color: #ffe9a3;
+}
+
+.piano-black-raised.piano-melody {
+  box-shadow: 0 0 0 2px #ffe9a3;
+}
+
 .trainer {
 
 }

@@ -306,16 +306,19 @@
       state.sustaining = true;
       $(pianoClass("pedal")).addClass("piano-sustain");
     }
+    if (state.melody) {
+      const index = melodyCodes.indexOf(event.which);
+      if (index !== -1) {
+        const note = state.melody[index];
+        if (note) {
+          playMelody([note]);
+        }
+        return;
+      }
+    }
     const pressedKey = keydown(event.which);
     if (pressedKey) {
       press(pressedKey);
-    }
-    if (event.which !== pedal && !pressedKey) {
-      const index = melodyCodes.indexOf(event.which);
-      if (index !== -1 && state.melody) {
-        const note = state.melody[index];
-        playMelody([note]);
-      }
     }
   });
 
@@ -370,6 +373,7 @@
       printKey(key, type);
     }
     printMelody([]);
+    updateMelodyHighlights();
     playMelody(state.melody.slice());
   });
 
@@ -396,14 +400,6 @@
     playMelody(scale);
   });
 
-  $("#show-melody").click(function () {
-    if (!state.melody || !state.key) {
-      return;
-    }
-    printMelody(state.melody);
-    printKey(state.key, state.type);
-  });
-
   const printMelody = function (melody) {
     const text = melody.join(" ");
     $("#notes").text("Notes: " + text);
@@ -413,6 +409,29 @@
     const text = key + " " + type;
     $("#key").text("Key: " + text);
   };
+
+  function updateMelodyHighlights() {
+    $(".piano-melody").removeClass("piano-melody");
+    if (!$("#show-melody-keys").is(":checked") || !state.melody) {
+      return;
+    }
+    state.melody.forEach((note) => {
+      $(pianoClass(note)).addClass("piano-melody");
+    });
+  }
+
+  $("#show-melody").click(function () {
+    if (!state.melody || !state.key) {
+      return;
+    }
+    printMelody(state.melody);
+    printKey(state.key, state.type);
+    updateMelodyHighlights();
+  });
+
+  $("#show-melody-keys").click(function () {
+    updateMelodyHighlights();
+  });
 
   const playMelody = function (melody) {
     if (!melody || melody.length === 0) {
