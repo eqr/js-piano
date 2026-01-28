@@ -7,9 +7,11 @@ steps:
 - name: deploy
   environment:
     CGO_ENABLED: 0
+    ASDF_DATA_DIR: "/home/eqr/.asdf"
     GOMODCACHE: '/home/eqr/drone/src/pkg.mod'
     GOCACHE: '/home/eqr/drone/src/pkg.build'
   commands:
+    - export PATH=/home/eqr/.local/bin:/home/eqr/.asdf/shims:/home/eqr/.asdf/bin:/usr/local/bin:/usr/local/go/bin:$PATH
     - (cd /home/eqr/code/js-piano && git pull && make deploy)
   when:
     branch:
